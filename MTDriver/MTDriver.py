@@ -1,9 +1,8 @@
 '''
-Created on Jul 5, 2012
+Created on Sep 27, 2012
 
-@author: szheng
+@author: mxu
 '''
-
 """
 The MTdriver implementation.
 """
@@ -11,11 +10,10 @@ The MTdriver implementation.
 import httplib, json, base64, datetime, time, socket
 
 from PIL import Image, ImageDraw
-import paramiko
 import os, sys
-from ChorusCore import Utils
 from subprocess import Popen
 import shlex
+
 #defines the UITable's size with up-left corner's and down-right conner's coordinates default using alert's ios simulator frame size 
 UITableViewRange = [0, 64, 320, 431]
 class DefaultThinkTime:
@@ -28,24 +26,10 @@ class DefaultTimeOut:
     medium	= 2000
     small	= 1000
 
-class Component:
-    button  = "b"
-    input   = "i"
-    view    = "v"
-    label   = "l"
-    table   = "t"
-    cell    = "c"
-    image   = "im"
-    scroll  = "s"
-    ctcLabel= "cl"
-    ctcView = "cv"  
-    TextView= 'tv'
-    TextArea = 'ta'
 
 class MTDriver(object):
     """
     Controls a mobile device by sending commands to the MonkeyTalk agent server.
-   
     """
 #    private static final SimpleDateFormat dateFmt = new SimpleDateFormat("yyyy-MM-dd_HHmmss");
 #    private static final String SCREENSHOTS_DIR = "screenshots";
@@ -72,37 +56,6 @@ class MTDriver(object):
             
         self.crashFlag = False
         self.inittime = int(time.time())
-        if self.type == 'iOS':
-            self.appName = "Alert.app"
-            self.appIdentifier = "com.strategy.alert"
-            self.target = self.appName.split(".")[0]
-            self.sshRoot = "root"
-            self.sshMobile = "mobile"
-            self.sshRootPasswd = "alpine"
-            self.sshMobilePasswd = "alpine"    
-            self.dsymPath = "/Users/gaojian/Workspace/build-out/Release-iphoneos/Alert.app.dSYM"
-            '''if you want to use MTDriver on none jail break devices comment the following lines'''
-            '''
-            self.launchApp(self.appIdentifier, self.appName)
-            self.pid = self.getPid()
-            
-            print "test connection..."
-            
-            try:
-                self.testConnection()
-                print "connection test pass"
-                    
-            except Exception, e:
-                raise ConnectError("cannot establish connection with %s" %self.device)
-            
-        else:
-            self.pid = None
-            pass
-            '''
-        '''
-        False => Crash
-        True => No Crash
-        '''
         
     #===========================================================================
     # 
@@ -120,30 +73,7 @@ class MTDriver(object):
             return False
     
     
-    
-    def getPid(self):
-        """
-        get the pid belongs to app 
-        @return: pid, return None if to pid was found match the app
-        """
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(self.device, username=self.sshRoot, password=self.sshRootPasswd)
-        if self.port =="16863" :
-            cmd ="ps -e |grep -v '\<grep\>' |grep /var/mobile/Applications/*/%s |awk  '{print $1}'" %self.appName
-            stdin, stdout, stderr = ssh.exec_command(cmd)
-            res = stdout.readlines()
-        else:
-            cmd ="andrid device cmd"
-            res = [] 
-        
-        if res == []:
-            pid = None
-        else:
-            pid = res[0].split("\n")[0]
-        ssh.close()
-        return pid
-    
+
     def setThinkTime(self, thinktime):
         self.thinktime = thinktime
         
@@ -169,164 +99,11 @@ class MTDriver(object):
         print "Number of failed actions: %i" % self.counter
         
     def counterGet(self):
-        return self.counter
+        return self.counter     
+
         
-    '''
-    start:
-    launch app
-    '''
-    def launchApp(self,appidentifier,appname):
-        """
-        launch the app on this device
-        
-        @param appidentifier: identifier of an app. example: com.strategy.alert
-                                
-                                application name for Android. e.g. com.alert.uat 
-                                
-        @type appidentifier: str
-        @param appname: process name of an app. example: Alert.app
-        
-                                Launching activity name. e.g. com.alert.ui.activity.DispatchActivity
-        @type appname: str
-        """
-        print self.device   
-        if self.type == "iOS":    
-            try:
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(self.device, username=self.sshRoot, password=self.sshRootPasswd)
-                cmd = "open %(appidentifier)s" %{'appidentifier': appidentifier}
-                stdin, stdout, stderr = ssh.exec_command(cmd)
-                print "App is launching... plz wait"
-                ssh.close()
-            except Exception, e:
-                raise SSHError('cannot ssh to device!')
-                    
-            inittime = int(time.time())
-            while self.isProcessAlive(appname) == False:
-                print "... ..."
-                time.sleep(1)
-                if int(time.time())-inittime > 10:
-                    print "failed to launch app"
-                    break
-        else:   #Android
-            try:
-                dev = self.device + ":5555"
-                cmd = "adb connect " + dev
-                #print cmd
-                print os.system(cmd)
-                cmd = "adb -s " + dev + " shell am start -a android.intent.action.MAIN -n " + appidentifier +'/' + appname
-                print cmd 
-                print os.system(cmd)
-                print "App is launching... plz wait"
-            except Exception, e:
-                raise 'cannot connect device'
-                
-        
-    
-    def isProcessAlive(self, processName):
-        """
-        check if process is alive, apart of launch and close app
-        Will raise SSHError if cannot access through SSH
-        
-        @param processName: process name of an app. example: Alert.app
-        @type processName: str
-        
-        @return: True if process is alive, else it return False
-        """
-        device = self.device
-        try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(device, username='root', password='alpine')
-            cmd = " ps -e |grep -v '\<grep\>' |grep /var/mobile/Applications/*/%(appname)s" %{'appname':processName}
-            stdin, stdout, stderr = ssh.exec_command(cmd)
-            res = stdout.readlines()
-            ssh.close()    
-            if res == []:
-                return False
-            else:
-                return True
-        except Exception, e:
-            raise SSHError('cannot ssh to device!')
-            
-    def isAppCrash(self):
-        """
-        check if app Crash, 
-        mechanism: check the latestCrash log, see if the pid in the log matches with slef.pid, the one belong to an app
-        
-        @return: True if Crash happened
-        """
-        latestCrashLog = "/var/mobile/Library/Logs/CrashReporter/LatestCrash.plist"
-        try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(self.device, username='root', password='alpine')
-            cmd = "ls -l %(filename)s | awk -F \"-> \" '{print $2}'" %{'filename': latestCrashLog}
-            stdin, stdout, stderr = ssh.exec_command(cmd)
-            logfile =  "/var/mobile/Library/Logs/CrashReporter/"+stdout.readlines()[0].split("\n")[0]
-            cmd = "grep \\^Process %s |awk '{print $3}' |awk -F \"[\" '{print $2}' |awk -F \"]\" '{print $1}' " %logfile
-            #cmd = "stat %(logfile)s |grep Birth |awk -F \" \" '{print $2, $3}' |awk -F \".\" '{print $1}' " %{'logfile': logfile}
-            stdin, stdout, stderr = ssh.exec_command(cmd)
-            pid=stdout.readlines()[0].split("\n")[0]
-            print pid
-            if self.pid == pid:
-                return True
-            else:
-                return False
-            ssh.close()
-        except Exception, e:
-            raise SSHError('cannot ssh to device!')
-        #logCreateTime=stdout.readlines()[0].split("\n")[0]
-        
-        #cmd = "date -d \""+logCreateTime+"\" +%s"
-        #stdin, stdout, stderr = ssh.exec_command(cmd)
-        #logCreateTime=stdout.readlines()[0].split("\n")[0]
-        #print int(logCreateTime)
-        #print self.inittime
-        
-        #ssh.close()
-        #if int(logCreateTime)>self.inittime:
-        #    return True
-        #else:
-        #    return False
-            
-    def closeApp(self,appname):
-        """
-        close the app, usually this is called when all tests are executed
-        
-        @param appname: process name of an app 
-        """
-        device = self.device
-        if self.type == 'iOS':
-            try:
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(device, username='root', password='alpine')
-                cmd = " ps -e |grep -v '\<grep\>' |grep /var/mobile/Applications/*/%(appname)s | awk '{print $1}' |xargs kill -9" %{'appname':appname}
-                stdin, stdout, stderr = ssh.exec_command(cmd)
-                #print stdout.readlines()
-                if self.isProcessAlive(appname) == False:
-                    print "%(appname)s has been closed." %{'appname':appname} 
-                else:
-                    print "close %(appname)s failed" %{'appname':appname}
-                
-                ssh.close()
-            except Exception, e:
-                raise SSHError('cannot ssh to device!')
-            
-        else: #Android
-            try:
-                dev = self.device + ":5555"
-                cmd = "adb connect " + dev
-                #print cmd
-                print os.system(cmd)
-                cmd = "adb -s " + dev + " shell am force-stop " + appname
-                #print cmd 
-                print os.system(cmd)
-                print "app closed"
-            except Exception, e:
-                raise 'cannot connect device'
+
+
             
     #===========================================================================
     # execute functions. 
@@ -462,7 +239,7 @@ class MTDriver(object):
                 print respDict['message'].encode("utf-8")
                 if self.counterGet() >= 10:
                     self.counterReset()
-                    raise TooManyFailedActionsError("Too many failed actions. Please fail the test!")
+                    raise MTException.TooManyFailedActionsError("Too many failed actions. Please fail the test!")
             else:
                 if isResetCounter:
                     self.counterReset()
@@ -477,7 +254,7 @@ class MTDriver(object):
                 self.counterAdd()      
             if self.counterGet() >= 10:
                 self.counterReset()
-                raise TooManyFailedActionsError("Too many failed actions. Please fail the test!")
+                raise MTException.TooManyFailedActionsError("Too many failed actions. Please fail the test!")
             return False      
         except Exception, e:
             print e
@@ -510,9 +287,9 @@ class MTDriver(object):
             imgFile.write(imgData)
             print('capture screenshot done')
             return True
-        except  CrashError:
+        except  MTException.CrashError:
             raise
-        except TooManyFailedActionsError:
+        except MTException.TooManyFailedActionsError:
             raise
         except  Exception, e:
             print ('capture screenshot error')
@@ -538,7 +315,7 @@ class MTDriver(object):
         aft = pre.crop(((bd[0],bd[1]+40,bd[2],bd[3])))
         try:
             aft.save(filename)
-        except TooManyFailedActionsError:
+        except MTException.TooManyFailedActionsError:
             raise
         except Exception, e:
             print ('remove top bar image process error')
@@ -553,9 +330,9 @@ class MTDriver(object):
             dic=json.loads(responsedata)
             screenshot=dic.get("message").get("screenshot")
             return screenshot
-        except  CrashError:
+        except  MTException.CrashError:
             raise
-        except TooManyFailedActionsError:
+        except MTException.TooManyFailedActionsError:
             raise
         except  Exception, e:
             print e
@@ -646,12 +423,12 @@ class MTDriver(object):
     
     def getElementFrame(self, dic, flag):
         '''return element's coordinate'''
+        global UITableViewRange 
         x = int(dic['frame']['x'])
         y = int(dic['frame']['y'])
         height = int(dic['frame']['height'])
-        width = int(dic['frame']['width'])
+        width = int(dic['frame']['width'])        
         
-        global UITableViewRange 
         if  y+height<UITableViewRange[1]:
             #if head icon just return 
             print (x, y, x+width, y+height)
@@ -701,13 +478,14 @@ class MTDriver(object):
             
     def getScreenshotWithMarkup(self, filename):
         '''get screen shot and auto add black mark to it'''
+        global UITableViewRange
         if self.type == 'iOS':
             viewData = self.DumpViewData('UILayoutContainerView','#1',  ['urlPath'])
             d = json.loads(viewData)
             res = self.execute('*', 'FindElement', 'UITableView')
             if json.loads( res)['result'] == 'OK':
                 flag = True
-                global UITableViewRange
+                
                 UITableViewRange = self.GetItemLocation('*', 'UITableView')
                 print UITableViewRange
             else:
@@ -715,7 +493,7 @@ class MTDriver(object):
             coordlist = self.getImageFrame(d, [], flag)
         else:
             viewData = self.DumpViewData('Table','*',  ['imageURL'])
-            global UITableViewRange
+
             UITableViewRange = self.GetItemLocation('*', 'Table')
             print UITableViewRange
             coordlist = self.getImageFrame(viewData, [], True)

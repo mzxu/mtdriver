@@ -7,8 +7,7 @@ setup(
     packages=['MTDriver'],
     include_package_data=True,
     zip_safe=False,
+    install_requires=["PIL"],
     license="MIT",
     url='https://github.com/mzxu/mtdriver',
-    description='A python binding for monkeytalk protocol',
-    long_description="A python binding for monkeytalk protocol",
-    )
+)
